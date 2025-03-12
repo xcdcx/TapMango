@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Engine;
+namespace Engine.Services;
 
-public class RateLimiterService
+public class RateLimiterService : IRateLimiterService
 {
     private readonly ILogger<RateLimiterService> _logger;
     private readonly IDatabase _redisDB;
@@ -21,6 +21,13 @@ public class RateLimiterService
 
     public async Task<bool> CanSendMessageAsync(string phoneNumber)
     {
+        var tranResult = await ExecuteLimitTransactionAsync(phoneNumber);
+        _logger.LogInformation(tranResult ? $"Message allowed for phone number: {phoneNumber}" : $"Rate limit exceeded for phone number: {phoneNumber}");
+        return tranResult;
+    }
+
+    private async Task<bool> ExecuteLimitTransactionAsync(string phoneNumber)
+    {
         try
         {
             string now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
@@ -37,9 +44,7 @@ public class RateLimiterService
             tran.HashSetAsync(accountKey, now, "1");
             tran.KeyExpireAsync(accountKey, TimeSpan.FromSeconds(1));
 
-            var tranResult = await tran.ExecuteAsync();
-            _logger.LogInformation(tranResult ? $"Message allowed for phone number: {phoneNumber}" : $"Rate limit exceeded for phone number: {phoneNumber}");
-            return tranResult;
+            return await tran.ExecuteAsync();
         }
         catch (RedisException ex)
         {

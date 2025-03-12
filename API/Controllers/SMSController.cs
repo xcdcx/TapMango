@@ -1,4 +1,4 @@
-﻿using Engine;
+﻿using Engine.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +9,7 @@ namespace API.Controllers
     public class SMSController : ControllerBase
     {
         private readonly ILogger<SMSController> _logger;
-        private readonly RateLimiterService _service;
+        private readonly IRateLimiterService _service;
         public SMSController(ILogger<SMSController> logger, RateLimiterService service)
         {
             _logger = logger;
