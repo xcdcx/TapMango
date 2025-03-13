@@ -1,4 +1,4 @@
-using Engine;
+using Engine.Services;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 
@@ -17,11 +17,6 @@ builder.Services.AddSingleton<RateLimiterService>(sp =>
     var logger = sp.GetRequiredService<ILogger<RateLimiterService>>();
     return new RateLimiterService(logger, redis, builder.Configuration.GetValue<int>("RateLimiter:MaxPerNumber"), builder.Configuration.GetValue<int>("RateLimiter:MaxPerAccount"));
 });
-//builder.Services.AddSingleton(sp =>
-//    new RateLimiterService(sp.GetRequiredService<IConnectionMultiplexer>(),
-//                            builder.Configuration.GetValue<int>("RateLimiter:MaxPerNumber"),
-//                            builder.Configuration.GetValue<int>("RateLimiter:MaxPerAccount")));
-//builder.Services.AddSingleton<RateLimiterService>();
 
 var app = builder.Build();
 
