@@ -33,18 +33,49 @@ public class RateLimiterService : IRateLimiterService
             string now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
             string numberKey = $"sms_limit:{phoneNumber}";
 
+            // Check cooldown for phone number
+            if (await _redisDB.StringGetAsync($"cooldown:{phoneNumber}") != RedisValue.Null)
+            {
+                _logger.LogWarning($"Phone number {phoneNumber} is in cooldown period.");
+                return false;
+            }
+
+            // Check cooldown for account
+            if (await _redisDB.StringGetAsync($"cooldown:{accountKey}") != RedisValue.Null)
+            {
+                _logger.LogWarning($"Account is in cooldown period.");
+                return false;
+            }
+
             //atomic operation as a transaction
             var tran = _redisDB.CreateTransaction();
             tran.AddCondition(Condition.HashLengthLessThan(numberKey, _maxLimitPerNumber));
             tran.AddCondition(Condition.HashLengthLessThan(accountKey, _maxLimitPerAccount));
 
-            tran.HashSetAsync(numberKey, now, "1");
-            tran.KeyExpireAsync(numberKey, TimeSpan.FromSeconds(1));
+            _ = tran.HashSetAsync(numberKey, now, "1");
+            _ = tran.KeyExpireAsync(numberKey, TimeSpan.FromSeconds(1));
 
-            tran.HashSetAsync(accountKey, now, "1");
-            tran.KeyExpireAsync(accountKey, TimeSpan.FromSeconds(1));
+            _ = tran.HashSetAsync(accountKey, now, "1");
+            _ = tran.KeyExpireAsync(accountKey, TimeSpan.FromSeconds(1));
 
-            return await tran.ExecuteAsync();
+            bool tranResult = await tran.ExecuteAsync();
+
+            if (!tranResult)
+            {
+                // Handle exceeded limits
+                if (await _redisDB.HashLengthAsync(accountKey) >= _maxLimitPerAccount)
+                {
+                    _logger.LogWarning($"Account limit exceeded. Setting account cooldown.");
+                    await _redisDB.StringSetAsync($"cooldown:{accountKey}", "1", TimeSpan.FromSeconds(1));
+                }
+                else if (await _redisDB.HashLengthAsync(numberKey) >= _maxLimitPerNumber)
+                {
+                    _logger.LogWarning($"Number limit exceeded for {phoneNumber}. Setting number cooldown.");
+                    await _redisDB.StringSetAsync($"cooldown:{phoneNumber}", "1", TimeSpan.FromSeconds(1));
+                }
+            }
+
+            return tranResult;
         }
         catch (RedisException ex)
         {

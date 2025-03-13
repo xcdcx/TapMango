@@ -1,6 +1,6 @@
 @API_HostAddress = http://localhost:5176
 
-GET {{API_HostAddress}}/weatherforecast/
+POST {{API_HostAddress}}/api/sms/can-send?phoneNumber=09123456789
 Accept: application/json
 
 ###
